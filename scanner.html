@@ -1,0 +1,312 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
+  <title>COREECO 2026 · Scanner</title>
+  <script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    :root {
+      --navy: #0B1F3A; --mid: #13294B; --blue: #2E5AAC;
+      --green: #1E8449; --gold: #C9A227; --red: #C0392B;
+    }
+    body { font-family: Arial, sans-serif; background: var(--navy); color: #fff; min-height: 100vh; }
+
+    /* Config */
+    #config-screen {
+      max-width: 420px; margin: 0 auto; padding: 32px 20px; text-align: center;
+    }
+    #config-screen h1 { font-size: 18px; margin-bottom: 6px; }
+    #config-screen p  { font-size: 12px; opacity: .6; margin-bottom: 24px; }
+    .config-label { font-size: 11px; opacity: .6; text-align: left; margin-bottom: 4px; }
+    .config-input {
+      width: 100%; padding: 10px 14px; border-radius: 8px; border: 1px solid rgba(255,255,255,.2);
+      background: var(--mid); color: #fff; font-size: 13px; margin-bottom: 14px; outline: none;
+    }
+    .config-input:focus { border-color: var(--blue); }
+    .btn-primary {
+      width: 100%; padding: 13px; background: var(--green); border: none; border-radius: 10px;
+      color: #fff; font-size: 15px; font-weight: 700; cursor: pointer;
+    }
+    .btn-primary:active { filter: brightness(.9); }
+
+    /* Main */
+    #main-screen { display: none; }
+
+    nav {
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 10px 16px; background: var(--mid); border-bottom: 2px solid var(--blue);
+      position: sticky; top: 0; z-index: 10;
+    }
+    .nav-brand { font-size: 13px; font-weight: 700; }
+    .nav-brand span { font-size: 10px; opacity: .6; display: block; font-weight: 400; }
+    .btn-config {
+      background: transparent; border: 1px solid rgba(255,255,255,.3);
+      color: #fff; padding: 5px 12px; border-radius: 6px; font-size: 11px; cursor: pointer;
+    }
+
+    .scanner-body { max-width: 420px; margin: 0 auto; padding: 16px; }
+
+    .controls { display: flex; gap: 10px; margin-bottom: 14px; }
+    .controls > div { flex: 1; }
+    .controls label { font-size: 10px; opacity: .6; display: block; margin-bottom: 3px; }
+    .controls select {
+      width: 100%; padding: 9px 10px; border-radius: 7px; border: none;
+      background: var(--mid); color: #fff; font-size: 13px; outline: none;
+    }
+
+    #cam-btn-wrap { text-align: center; margin-bottom: 14px; }
+    #btn-camara {
+      width: 100%; padding: 14px; background: var(--green); border: none;
+      border-radius: 10px; color: #fff; font-size: 15px; font-weight: 700; cursor: pointer;
+    }
+    #btn-camara:disabled { opacity: .5; cursor: default; }
+    #cam-hint { font-size: 10px; opacity: .5; margin-top: 5px; }
+
+    #reader {
+      display: none; width: 100%; border-radius: 12px; overflow: hidden;
+      box-shadow: 0 0 0 3px var(--green); margin-bottom: 14px;
+    }
+
+    #result {
+      display: none; padding: 14px; border-radius: 10px; text-align: center;
+      font-size: 13px; line-height: 1.6; background: var(--mid); min-height: 70px;
+    }
+    #result.ok   { background: #1a5c38; }
+    #result.warn { background: #7d6010; }
+    #result.err  { background: #7a1f1f; }
+    .badge {
+      display: inline-block; padding: 2px 12px; border-radius: 20px;
+      font-size: 10px; font-weight: 700; letter-spacing: 1px; margin-bottom: 4px;
+    }
+    .E { background: #27ae60; } .S { background: #2980b9; }
+
+    #cam-err {
+      display: none; background: #7a1f1f; border-radius: 10px;
+      padding: 12px; font-size: 12px; text-align: center; line-height: 1.6; margin-bottom: 12px;
+    }
+
+    /* KPI mini */
+    #kpis {
+      display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-top: 16px;
+    }
+    .kpi { background: var(--mid); border-radius: 8px; padding: 8px; text-align: center; }
+    .kpi b { display: block; font-size: 20px; color: #2ecc71; }
+    .kpi span { font-size: 9px; opacity: .6; }
+  </style>
+</head>
+<body>
+
+<!-- ─── PANTALLA DE CONFIGURACIÓN ─── -->
+<div id="config-screen">
+  <h1>COREECO · Huaraz 2026</h1>
+  <p>Scanner de control de asistencia</p>
+
+  <div class="config-label">URL de tu Apps Script (la URL que te dio Google al deployar)</div>
+  <input class="config-input" id="script-url" type="url"
+    placeholder="https://script.google.com/macros/s/…/exec">
+
+  <div class="config-label" style="margin-top:4px">Nombre del operador (opcional)</div>
+  <input class="config-input" id="operador" type="text" placeholder="Ej: Staff Entrada">
+
+  <button class="btn-primary" onclick="guardarConfig()">Continuar →</button>
+  <div style="font-size:10px;opacity:.4;margin-top:12px">
+    La URL se guarda en este dispositivo y no se comparte con nadie.
+  </div>
+</div>
+
+<!-- ─── PANTALLA PRINCIPAL ─── -->
+<div id="main-screen">
+  <nav>
+    <div class="nav-brand">
+      COREECO · Huaraz 2026
+      <span id="nav-operador">Control de Asistencia</span>
+    </div>
+    <button class="btn-config" onclick="mostrarConfig()">⚙ Config</button>
+  </nav>
+
+  <div class="scanner-body">
+    <div class="controls">
+      <div>
+        <label>Jornada</label>
+        <select id="selDia">
+          <option value="Día 1">Día 1</option>
+          <option value="Día 2">Día 2</option>
+          <option value="Día 3">Día 3</option>
+        </select>
+      </div>
+      <div>
+        <label>Turno</label>
+        <select id="selTurno">
+          <option value="auto">auto (por hora)</option>
+          <option value="Mañana">Mañana</option>
+          <option value="Tarde">Tarde</option>
+        </select>
+      </div>
+    </div>
+
+    <div id="cam-btn-wrap">
+      <button id="btn-camara" onclick="activarCamara()">🎥 Activar cámara</button>
+      <div id="cam-hint">Tocá para que Chrome pida permiso de cámara</div>
+    </div>
+
+    <div id="cam-err"></div>
+    <div id="reader"></div>
+    <div id="result"></div>
+
+    <div id="kpis">
+      <div class="kpi"><b id="k1">–</b><span>Completo Día 1</span></div>
+      <div class="kpi"><b id="k2">–</b><span>Completo Día 2</span></div>
+      <div class="kpi"><b id="k3">–</b><span>Completo Día 3</span></div>
+    </div>
+  </div>
+</div>
+
+<script>
+  var SCRIPT_URL = '';
+  var qr = null, activo = false;
+  var lastCode = '', lastTime = 0;
+
+  // ── Config ─────────────────────────────────────────────
+  function guardarConfig() {
+    var url = document.getElementById('script-url').value.trim();
+    if (!url.startsWith('https://script.google.com')) {
+      alert('Pegá la URL completa de tu Apps Script (empieza con https://script.google.com)');
+      return;
+    }
+    SCRIPT_URL = url;
+    localStorage.setItem('coreeco_url', url);
+    localStorage.setItem('coreeco_op', document.getElementById('operador').value.trim());
+    mostrarMain();
+  }
+
+  function mostrarMain() {
+    var op = localStorage.getItem('coreeco_op') || 'Control de Asistencia';
+    document.getElementById('nav-operador').textContent = op;
+    document.getElementById('config-screen').style.display = 'none';
+    document.getElementById('main-screen').style.display = 'block';
+    refrescarKpis();
+  }
+
+  function mostrarConfig() {
+    if (activo) pararCamara();
+    document.getElementById('config-screen').style.display = 'block';
+    document.getElementById('main-screen').style.display = 'none';
+    document.getElementById('script-url').value = SCRIPT_URL;
+  }
+
+  // ── Cámara ─────────────────────────────────────────────
+  function activarCamara() {
+    var btn = document.getElementById('btn-camara');
+    btn.disabled = true;
+    btn.textContent = 'Solicitando permiso…';
+    document.getElementById('cam-err').style.display = 'none';
+
+    navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } })
+      .then(function(stream) {
+        stream.getTracks().forEach(function(t){ t.stop(); });
+        document.getElementById('cam-btn-wrap').style.display = 'none';
+        document.getElementById('reader').style.display = 'block';
+        document.getElementById('result').style.display = 'block';
+        iniciarScanner();
+      })
+      .catch(function(err) {
+        btn.disabled = false;
+        btn.textContent = '🎥 Activar cámara';
+        var e = document.getElementById('cam-err');
+        e.style.display = 'block';
+        e.innerHTML = err.name === 'NotAllowedError'
+          ? '🔒 Permiso denegado.<br><small>Tocá el ícono 🔒 o ⓘ en la barra de dirección → Cámara → Permitir → recargá.</small>'
+          : '⚠️ ' + err.name + ': ' + err.message;
+      });
+  }
+
+  function iniciarScanner() {
+    document.getElementById('reader').innerHTML = '';
+    qr = new Html5Qrcode('reader');
+    qr.start(
+      { facingMode: 'environment' },
+      { fps: 10, qrbox: { width: 230, height: 230 } },
+      onScan
+    ).then(function(){ activo = true; })
+     .catch(function(err){
+       var e = document.getElementById('cam-err');
+       e.style.display = 'block';
+       e.textContent = 'Error al iniciar cámara: ' + err;
+     });
+  }
+
+  function pararCamara() {
+    if (qr && activo) {
+      qr.stop().then(function(){ activo = false; }).catch(function(){});
+    }
+  }
+
+  // ── Escaneo ─────────────────────────────────────────────
+  function onScan(decoded) {
+    var now = Date.now();
+    if (decoded === lastCode && (now - lastTime) < 4000) return;
+    lastCode = decoded; lastTime = now;
+
+    var box = document.getElementById('result');
+    box.className = ''; box.innerHTML = 'Procesando…';
+
+    var dia   = document.getElementById('selDia').value;
+    var turno = document.getElementById('selTurno').value;
+    var url   = SCRIPT_URL
+      + '?action=scan'
+      + '&id='    + encodeURIComponent(decoded)
+      + '&dia='   + encodeURIComponent(dia)
+      + '&turno=' + encodeURIComponent(turno);
+
+    fetch(url)
+      .then(function(r){ return r.json(); })
+      .then(function(data){ mostrarResultado(data); refrescarKpis(); })
+      .catch(function(err){
+        box.className = 'err';
+        box.innerHTML = '❌ Error de conexión: ' + err.message;
+      });
+
+    if (navigator.vibrate) navigator.vibrate(80);
+  }
+
+  function mostrarResultado(data) {
+    var box = document.getElementById('result');
+    box.className = data.ok ? 'ok' : (data.warn ? 'warn' : 'err');
+    var badge = data.accion
+      ? '<span class="badge '+(data.accion==='ENTRADA'?'E':'S')+'">'+data.accion+' '+data.turno+'</span><br>'
+      : '';
+    if (data.nombre) {
+      box.innerHTML = badge +
+        '<strong>'+data.nombre+'</strong><br>'+
+        '<small style="opacity:.8">'+data.univ+' · '+data.cat+'</small><br>'+
+        '<span style="font-size:11px;opacity:.7">'+data.dia+' · '+(data.hora||data.msg)+'</span>';
+    } else {
+      box.innerHTML = badge + (data.msg || 'Sin respuesta');
+    }
+  }
+
+  // ── KPIs ────────────────────────────────────────────────
+  function refrescarKpis() {
+    if (!SCRIPT_URL) return;
+    fetch(SCRIPT_URL + '?action=dashboard')
+      .then(function(r){ return r.json(); })
+      .then(function(d){
+        ['1','2','3'].forEach(function(n){
+          var rc = d.resumen && d.resumen['Día '+n];
+          document.getElementById('k'+n).textContent = rc ? rc.completo : '–';
+        });
+      }).catch(function(){});
+  }
+
+  // ── Inicio ───────────────────────────────────────────────
+  var savedUrl = localStorage.getItem('coreeco_url');
+  if (savedUrl) {
+    SCRIPT_URL = savedUrl;
+    document.getElementById('script-url').value = savedUrl;
+    mostrarMain();
+  }
+</script>
+</body>
+</html>
