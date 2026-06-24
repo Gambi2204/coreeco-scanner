@@ -279,7 +279,9 @@
       box.innerHTML = badge +
         '<strong>'+data.nombre+'</strong><br>'+
         '<small style="opacity:.8">'+data.univ+' · '+data.cat+'</small><br>'+
-        '<span style="font-size:11px;opacity:.7">'+(data.sesion||data.dia)+' · '+(data.hora||data.msg)+'</span>';
+        (data.hora
+          ? '<span style="font-size:11px;opacity:.7">'+(data.sesion||data.dia)+' · '+data.hora+'</span>'
+          : '<span style="font-size:12px">'+data.msg+'</span>');
     } else {
       box.innerHTML = badge + (data.msg || 'Sin respuesta');
     }
@@ -307,4 +309,5 @@
   }
 </script>
 </body>
+</html>
 </html>
